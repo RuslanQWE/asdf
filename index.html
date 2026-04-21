@@ -68,6 +68,12 @@
         <div id="groupList"></div>
     </div>
 
+    <div class="card">
+  <h2>🔑 Авторизация</h2>
+  <button id="loginGoogle" class="btn-save">Войти через Google</button>
+  <button id="logoutBtn" class="btn-save" style="background:#dc3545; margin-top:10px;">Выйти</button>
+</div>
+
     <script type="module">
         import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
@@ -130,6 +136,43 @@
 
         fetchGroup();
         setInterval(fetchGroup, 5000);
+
+        <script type="module">
+  import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+
+  const URL = 'https://unnsbhztrdlonakztwtl.supabase.co'; 
+  const KEY = 'sb_publishable_Cqmz3Pa7c9AvAuk6EmPTFQ_GovCnhpB'; 
+
+  const supabase = createClient(URL, KEY);
+
+  // Кнопка входа
+  document.getElementById('loginGoogle').onclick = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin // вернёт обратно на твой сайт
+      }
+    });
+    if (error) alert("Ошибка входа: " + error.message);
+  };
+
+  // Кнопка выхода
+  document.getElementById('logoutBtn').onclick = async () => {
+    await supabase.auth.signOut();
+    alert("Вы вышли из аккаунта");
+    location.reload();
+  };
+
+  // Проверка текущего пользователя
+  async function checkUser() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      document.getElementById('displayUsername').innerText = user.email;
+    }
+  }
+
+  checkUser();
+</script>
     </script>
 </body>
 </html>
