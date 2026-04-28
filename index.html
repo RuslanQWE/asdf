@@ -7,26 +7,30 @@
   <style>
     :root { --primary-color:#007bff; --bg-color:#f4f7f9; }
     body { font-family:'Segoe UI', Tahoma, sans-serif; background:var(--bg-color); display:flex; flex-direction:column; align-items:center; padding:20px; color:#333; }
-    .card { background:white; border-radius:16px; padding:24px; box-shadow:0 4px 20px rgba(0,0,0,0.06); width:100%; max-width:650px; margin-bottom:20px; }
+    .card { background:white; border-radius:16px; padding:24px; box-shadow:0 4px 20px rgba(0,0,0,0.06); width:100%; max-width:720px; margin-bottom:20px; }
     h2 { margin-top:0; font-size:1.2rem; display:flex; align-items:center; gap:8px; }
     .status-info-box { background:#eef6ff; border-radius:12px; padding:16px; margin-bottom:20px; border-left:4px solid var(--primary-color); }
     .info-row { display:flex; align-items:center; gap:10px; font-size:0.9rem; margin:4px 0; }
     .info-row b { color:var(--primary-color); }
     .status-grid { display:flex; flex-wrap:wrap; gap:8px; margin:15px 0 25px 0; }
-    .status-option { padding:8px 16px; border:1px solid #dee2e6; border-radius:20px; background:white; cursor:pointer; font-size:0.9rem; transition:all 0.2s ease; }
+    .status-option { padding:8px 16px; border:1px solid #dee2e6; border-radius:20px; background:white; cursor:pointer; font-size:0.9rem; transition:all 0.2s ease; display:flex; align-items:center; gap:6px; }
     .status-option:hover { border-color:var(--primary-color); background:#f8faff; }
-    .status-option.active { background:var(--primary-color); color:white; border-color:var(--primary-color); }
+    .status-option.active { background:var(--primary-color); color:white; border-color:var(--primary-color); box-shadow:0 4px 10px rgba(0,123,255,0.12); }
     .btn { width:100%; padding:12px; border:none; border-radius:10px; font-weight:bold; font-size:1rem; cursor:pointer; transition:0.3s; margin-top:10px; }
     .btn-save { background:var(--primary-color); color:white; }
     .btn-save:hover { background:#0056b3; }
+    .btn-ghost { background:#6c757d; color:white; }
+    .btn-google { background:#4285F4; color:white; }
     .btn-logout { background:#dc3545; color:white; display:none; }
-    .btn-google { background:#4285F4; color:white; display:block; }
     .user-item { display:flex; align-items:center; padding:12px 0; border-bottom:1px solid #f1f3f5; }
     .status-dot { width:10px; height:10px; border-radius:50%; margin-right:15px; }
     .username { font-weight:600; flex-grow:1; }
     .status-tag { font-size:0.75rem; color:#6c757d; background:#f8f9fa; padding:4px 10px; border-radius:10px; border:1px solid #eee; }
+    .small { font-size:0.85rem; color:#666; }
     .hidden { display:none !important; }
+    .controls { display:flex; gap:8px; margin-top:12px; }
     .debug { font-size:0.8rem; color:#666; margin-top:8px; }
+    @media (max-width:600px){ .card{padding:16px} .status-grid{gap:6px} .controls{flex-direction:column} }
   </style>
 </head>
 <body>
@@ -42,12 +46,15 @@
 
   <div id="myProfileCard" class="card hidden">
     <h2>👤 Мой профиль</h2>
+
     <div class="status-info-box">
       <div class="info-row">👨‍💻 Вы: <b id="displayUsername">...</b></div>
-      <div class="info-row">📌 Статус: <span id="currentStatusText">не установлен</span></div>
+      <div class="info-row">📌 Текущий статус: <span id="currentStatusText">не установлен</span></div>
+      <div class="info-row">🔵 Онлайн: <b id="onlineIndicator">—</b></div>
+      <div class="info-row">⏱️ Время учёбы: <b id="studyTimeDisplay">0 мин</b></div>
     </div>
 
-    <p style="font-size:0.85rem; color:#666; margin-bottom:5px;">Выберите новый статус:</p>
+    <p class="small">Выберите статус:</p>
     <div class="status-grid" id="statusPicker">
       <div class="status-option" onclick="prepStatus(this, '🟢 Онлайн', '#28a745')">🟢 Онлайн</div>
       <div class="status-option" onclick="prepStatus(this, '☕ Отошёл', '#ffc107')">☕ Отошёл</div>
@@ -55,7 +62,13 @@
       <div class="status-option" onclick="prepStatus(this, '🗓️ Встреча', '#007bff')">🗓️ Встреча</div>
       <div class="status-option" onclick="prepStatus(this, '🍜 Обед', '#6f42c1')">🍜 Обед</div>
     </div>
+
     <button class="btn btn-save" onclick="applyStatus()">Сохранить статус</button>
+
+    <div class="controls">
+      <button id="startStudyBtn" class="btn btn-save" style="flex:1; background:#17a2b8;">Начать учёбу</button>
+      <button id="stopStudyBtn" class="btn btn-ghost" style="flex:1;" disabled>Остановить</button>
+    </div>
   </div>
 
   <div class="card">
@@ -66,21 +79,28 @@
   <script type="module">
     import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
-    // --- Настройки Supabase (оставь свои значения) ---
+    // --- Конфигурация Supabase (оставь свои значения) ---
     const URL = 'https://unnsbhztrdlonakztwtl.supabase.co';
     const KEY = 'sb_publishable_Cqmz3Pa7c9AvAuk6EmPTFQ_GovCnhpB';
     const supabase = createClient(URL, KEY);
 
+    // --- Параметры работы ---
+    const HEARTBEAT_INTERVAL = 25000; // 25 сек
+    const SYNC_STUDY_INTERVAL = 60000; // 60 сек
+    const ONLINE_THRESHOLD_MS = 40000; // 40 сек
+
     // --- Состояние ---
     let currentUser = null;
     let tempStatus = { text: '', color: '' };
+    let heartbeatTimer = null;
+    let studyTimer = null;
+    let studyStartTs = null;
 
-    // --- UI элементы ---
+    // --- Элементы UI ---
     const loginBtn = document.getElementById('loginGoogle');
     const logoutBtn = document.getElementById('logoutBtn');
     const authDebug = document.getElementById('authDebug');
 
-    // --- Вспомогательные функции для отладки UI ---
     function debug(msg) {
       console.log(msg);
       authDebug.innerText = String(msg);
@@ -92,7 +112,7 @@
       try {
         const { error } = await supabase.auth.signInWithOAuth({
           provider: 'google',
-          options: { redirectTo: window.location.origin } // убедись, что этот origin добавлен в Google Console и Supabase
+          options: { redirectTo: window.location.origin }
         });
         if (error) {
           debug('signInWithOAuth error: ' + error.message);
@@ -128,7 +148,8 @@
         id: currentUser.id,
         username: currentUser.email,
         status: tempStatus.text,
-        color: tempStatus.color
+        color: tempStatus.color,
+        last_seen: new Date().toISOString()
       }, { returning: 'minimal' });
       if (error) {
         console.error('upsert error', error);
@@ -138,22 +159,113 @@
       }
     };
 
+    // --- Heartbeat: помечаем пользователя онлайн регулярно ---
+    function startHeartbeat() {
+      stopHeartbeat();
+      heartbeatTimer = setInterval(async () => {
+        if (!currentUser) return;
+        try {
+          await supabase.from('profiles').update({
+            is_online: true,
+            last_seen: new Date().toISOString()
+          }).eq('id', currentUser.id);
+        } catch (e) {
+          console.warn('heartbeat error', e);
+        }
+      }, HEARTBEAT_INTERVAL);
+    }
+    function stopHeartbeat() {
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
+    }
+
+    // --- Таймер учёбы ---
+    document.getElementById('startStudyBtn').onclick = () => {
+      if (!currentUser) return alert('Сначала войдите через Google');
+      if (studyStartTs) return;
+      studyStartTs = Date.now();
+      studyTimer = setInterval(syncStudyNow, SYNC_STUDY_INTERVAL);
+      document.getElementById('startStudyBtn').disabled = true;
+      document.getElementById('stopStudyBtn').disabled = false;
+      debug('Учёба начата');
+    };
+
+    document.getElementById('stopStudyBtn').onclick = async () => {
+      if (!studyStartTs) return;
+      await syncStudyNow();
+      clearInterval(studyTimer);
+      studyTimer = null;
+      studyStartTs = null;
+      document.getElementById('startStudyBtn').disabled = false;
+      document.getElementById('stopStudyBtn').disabled = true;
+      fetchGroup();
+      debug('Учёба остановлена');
+    };
+
+    async function syncStudyNow() {
+      if (!currentUser || !studyStartTs) return;
+      const elapsedMs = Date.now() - studyStartTs;
+      const minutes = Math.floor(elapsedMs / 60000);
+      if (minutes <= 0) return;
+      try {
+        const { data: profile, error: selErr } = await supabase.from('profiles').select('study_time').eq('id', currentUser.id).single();
+        if (selErr) { console.error(selErr); return; }
+        const current = (profile && profile.study_time) ? profile.study_time : 0;
+        const newTotal = current + minutes;
+        const { error } = await supabase.from('profiles').update({ study_time: newTotal }).eq('id', currentUser.id);
+        if (error) console.error('Ошибка синхронизации study_time', error);
+        studyStartTs = Date.now();
+        document.getElementById('studyTimeDisplay').innerText = `${newTotal} мин`;
+      } catch (e) {
+        console.error('syncStudyNow exception', e);
+      }
+    }
+
+    // --- Visibility / unload handlers ---
+    window.addEventListener('visibilitychange', async () => {
+      if (!currentUser) return;
+      try {
+        if (document.visibilityState === 'hidden') {
+          await supabase.from('profiles').update({ is_online: false, last_seen: new Date().toISOString() }).eq('id', currentUser.id);
+        } else {
+          await supabase.from('profiles').update({ is_online: true, last_seen: new Date().toISOString() }).eq('id', currentUser.id);
+        }
+      } catch (e) { console.warn('visibilitychange error', e); }
+    });
+
+    window.addEventListener('beforeunload', async () => {
+      if (!currentUser) return;
+      try {
+        await syncStudyNow();
+        await supabase.from('profiles').update({ is_online: false, last_seen: new Date().toISOString() }).eq('id', currentUser.id);
+      } catch (e) { /* ignore */ }
+    });
+
     // --- Загрузка списка пользователей ---
     async function fetchGroup() {
       try {
-        const { data, error } = await supabase.from('profiles').select('*').order('username', { ascending: true });
+        const { data, error } = await supabase.from('profiles').select('id, username, status, color, is_online, last_seen, study_time').order('username', { ascending: true });
         if (error) throw error;
         const list = document.getElementById('groupList');
-        list.innerHTML = data.map(u => `
-          <div class="user-item">
-            <div class="status-dot" style="background:${u.color || '#ccc'}"></div>
-            <div class="username">${u.username || 'Аноним'}</div>
-            <div class="status-tag">${u.status || 'Вне сети'}</div>
-          </div>
-        `).join('') || 'Пользователей пока нет.';
+        list.innerHTML = data.map(u => {
+          const online = u.is_online || (u.last_seen && (new Date() - new Date(u.last_seen) < ONLINE_THRESHOLD_MS));
+          const dotColor = online ? '#28a745' : '#ccc';
+          const study = u.study_time || 0;
+          return `
+            <div class="user-item">
+              <div class="status-dot" style="background:${dotColor}"></div>
+              <div class="username">${u.username || 'Аноним'}</div>
+              <div class="status-tag">${u.status || '—'} • Учёба: ${study} мин</div>
+            </div>
+          `;
+        }).join('') || 'Пользователей пока нет.';
         if (currentUser) {
           const me = data.find(x => x.id === currentUser.id);
-          if (me) document.getElementById('currentStatusText').innerText = me.status || 'не установлен';
+          if (me) {
+            document.getElementById('currentStatusText').innerText = me.status || 'не установлен';
+            document.getElementById('onlineIndicator').innerText = (me.is_online ? 'online' : (me.last_seen && (new Date() - new Date(me.last_seen) < ONLINE_THRESHOLD_MS) ? 'online' : 'offline'));
+            document.getElementById('studyTimeDisplay').innerText = `${me.study_time || 0} мин`;
+          }
         }
       } catch (err) {
         console.error('fetchGroup error', err);
@@ -161,27 +273,29 @@
       }
     }
 
+    // --- Realtime подписка на изменения в profiles (обновляет список автоматически) ---
+    supabase
+      .channel('public:profiles')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, payload => {
+        fetchGroup();
+      })
+      .subscribe()
+      .catch(e => console.debug('subscribe error', e));
+
     // --- Обработка OAuth редиректа (если пользователь вернулся с Google) ---
-    // Важно: getSessionFromUrl сохраняет сессию в localStorage/cookie (storeSession: true)
     (async function handleOAuthRedirect() {
       try {
-        // Если URL содержит параметры от OAuth, supabase попытается извлечь сессию
         const { data, error } = await supabase.auth.getSessionFromUrl({ storeSession: true });
         if (error) {
-          // Часто здесь будет сообщение, если редирект не содержит сессии — это нормально
           console.debug('getSessionFromUrl:', error.message);
         } else if (data?.session) {
           debug('OAuth: сессия получена из URL');
         } else {
           console.debug('Нет OAuth сессии в URL');
         }
-        // Убираем возможные хеши/параметры из URL, чтобы не мешали дальнейшим редиректам
+        // очищаем URL от параметров OAuth
         if (window.location.hash || window.location.search.includes('access_token') || window.location.search.includes('refresh_token')) {
-          try {
-            history.replaceState(null, '', window.location.origin + window.location.pathname);
-          } catch (e) {
-            // ignore
-          }
+          try { history.replaceState(null, '', window.location.origin + window.location.pathname); } catch (e) {}
         }
       } catch (e) {
         console.debug('handleOAuthRedirect exception', e);
@@ -213,9 +327,7 @@
       } catch (e) {
         console.error('init error', e);
       }
-      // начальный список
       fetchGroup();
-      // периодическое обновление списка
       setInterval(fetchGroup, 10000);
     })();
 
@@ -228,11 +340,12 @@
       logoutBtn.style.display = 'block';
       document.getElementById('myProfileCard').classList.remove('hidden');
 
-      // Создаём/обновляем профиль (upsert)
+      // Создаём/обновляем профиль (upsert) — помечаем username и last_seen
       try {
         const { error } = await supabase.from('profiles').upsert({
           id: user.id,
           username: user.user_metadata?.full_name || user.email,
+          is_online: true,
           last_seen: new Date().toISOString()
         }, { returning: 'minimal' });
         if (error) console.warn('upsert profile warning', error);
@@ -240,27 +353,30 @@
         console.warn('upsert profile exception', e);
       }
 
+      startHeartbeat();
       fetchGroup();
     }
 
     async function onUserSignedOut() {
       debug('Пользователь вышел');
+      if (currentUser) {
+        try {
+          await supabase.from('profiles').update({ is_online: false, last_seen: new Date().toISOString() }).eq('id', currentUser.id);
+        } catch (e) { /* ignore */ }
+      }
+      stopHeartbeat();
       currentUser = null;
       document.getElementById('displayUsername').innerText = '...';
+      document.getElementById('currentStatusText').innerText = 'не установлен';
+      document.getElementById('onlineIndicator').innerText = '—';
+      document.getElementById('studyTimeDisplay').innerText = '0 мин';
       loginBtn.classList.remove('hidden');
       logoutBtn.style.display = 'none';
       document.getElementById('myProfileCard').classList.add('hidden');
       fetchGroup();
     }
 
-    // --- Полезные подсказки (показываются в консоли и в debug поле) ---
-    // Если после этого всё ещё не работает:
-    // 1) Открой DevTools → Network и посмотри запрос к /auth/v1/authorize — проверь параметр redirect_uri.
-    // 2) В Google Cloud Console: в OAuth Client -> Authorized redirect URIs добавь:
-    //    https://unnsbhztrdlonakztwtl.supabase.co/auth/v1/callback
-    //    и для локали (если тестируешь локально) добавь http://localhost:3000
-    // 3) В Supabase -> Auth -> Settings: Site URL и Redirect URLs должны включать http://localhost:3000 (для локали) и/или твой прод-домен.
-    // 4) Не запускай страницу внутри iframe/webview — OAuth должен открываться в основном окне браузера.
+    // --- Конец скрипта ---
   </script>
 </body>
 </html>
