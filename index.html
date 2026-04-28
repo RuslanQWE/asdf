@@ -1,142 +1,218 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>Монитор статусов</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    :root { --primary-color:#007bff; --bg-color:#f4f7f9; }
-    body { font-family: 'Segoe UI', Tahoma, sans-serif; background:var(--bg-color); display:flex; flex-direction:column; align-items:center; padding:20px; color:#333; }
-    .card { background:white; border-radius:16px; padding:24px; box-shadow:0 4px 20px rgba(0,0,0,0.06); width:100%; max-width:650px; margin-bottom:20px; }
-    h2 { margin-top:0; font-size:1.2rem; display:flex; align-items:center; gap:8px; }
-    .status-info-box { background:#eef6ff; border-radius:12px; padding:16px; margin-bottom:20px; border-left:4px solid var(--primary-color); }
-    .info-row { display:flex; align-items:center; gap:10px; font-size:0.9rem; margin:4px 0; }
-    .status-grid { display:flex; flex-wrap:wrap; gap:8px; margin:15px 0 25px 0; }
-    .status-option { padding:8px 16px; border:1px solid #dee2e6; border-radius:20px; background:white; cursor:pointer; font-size:0.9rem; transition:0.2s; display:flex; align-items:center; gap:6px; }
-    .status-option.active { background:var(--primary-color); color:white; border-color:var(--primary-color); }
-    .btn-save { width:100%; padding:12px; background:var(--primary-color); color:white; border:none; border-radius:10px; font-weight:bold; cursor:pointer; }
-    .btn-red { background:#dc3545; margin-top:10px; }
-    .user-item { display:flex; align-items:center; padding:12px 0; border-bottom:1px solid #f1f3f5; }
-    .status-dot { width:10px; height:10px; border-radius:50%; margin-right:15px; }
-    .username { font-weight:600; flex-grow:1; }
-    .status-tag { font-size:0.75rem; color:#6c757d; background:#f8f9fa; padding:4px 10px; border-radius:10px; }
+    :root { --primary-color: #007bff; --bg-color: #f4f7f9; }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: var(--bg-color); display: flex; flex-direction: column; align-items: center; padding: 20px; color: #333; }
+    .card { background: white; border-radius: 16px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); width: 100%; max-width: 650px; margin-bottom: 20px; }
+    h2 { margin-top: 0; font-size: 1.2rem; display: flex; align-items: center; gap: 8px; }
+    .status-info-box { background: #eef6ff; border-radius: 12px; padding: 16px; margin-bottom: 20px; border-left: 4px solid var(--primary-color); }
+    .info-row { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; margin: 4px 0; }
+    .info-row b { color: var(--primary-color); }
+    .status-grid { display: flex; flex-wrap: wrap; gap: 8px; margin: 15px 0 25px 0; }
+    .status-option { padding: 8px 16px; border: 1px solid #dee2e6; border-radius: 20px; background: white; cursor: pointer; font-size: 0.9rem; transition: all 0.2s ease; display: flex; align-items: center; gap: 6px; }
+    .status-option:hover { border-color: var(--primary-color); background-color: #f8faff; }
+    .status-option.active { background-color: var(--primary-color); color: white; border-color: var(--primary-color); box-shadow: 0 4px 10px rgba(0,123,255,0.2); }
+    .btn-save { width: 100%; padding: 12px; background-color: var(--primary-color); color: white; border: none; border-radius: 10px; font-weight: bold; font-size: 1rem; cursor: pointer; transition: background 0.3s; }
+    .btn-save:hover { background-color: #0056b3; }
+    .user-item { display: flex; align-items: center; padding: 12px 0; border-bottom: 1px solid #f1f3f5; }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 15px; }
+    .avatar { width: 32px; height: 32px; border-radius: 50%; margin-right: 10px; border: 1px solid #eee; }
+    .username { font-weight: 600; flex-grow: 1; }
+    .status-tag { font-size: 0.75rem; color: #6c757d; background: #f8f9fa; padding: 4px 10px; border-radius: 10px; border: 1px solid #eee; }
+    .btn-red { background-color: #dc3545; margin-top: 10px; }
   </style>
 </head>
 <body>
 
   <div class="card">
     <h2>🔐 Авторизация</h2>
-    <div style="display:flex; gap:8px; margin-top:12px;">
-      <button id="signInBtn" class="btn-save">Войти через Google</button>
-      <button id="signOutBtn" class="btn-save btn-red">Выйти</button>
+    <div style="display: flex; gap: 10px;">
+      <button class="btn-save" id="loginBtn">Войти через Google</button>
+      <button class="btn-save btn-red" id="logoutBtn">Выйти</button>
     </div>
   </div>
 
-  <div class="card">
-    <h2>👤 Мой профиль</h2>
-    <div class="status-info-box">
-      <div class="info-row">👨‍💻 Вы зашли как: <b id="displayUsername">гость</b></div>
-      <div class="info-row">📌 Статус: <span id="currentStatusText">—</span></div>
+  <div id="mainContent" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
+    <div class="card">
+      <h2>👤 Мой профиль</h2>
+      <div class="status-info-box">
+        <div class="info-row">👨‍💻 Вы зашли как: <b id="displayUsername">гость</b></div>
+        <div class="info-row">📌 Текущий статус: <span id="currentStatusText">—</span></div>
+      </div>
+
+      <p style="font-size: 0.85rem; color: #666;">Выберите новый статус:</p>
+      <div class="status-grid" id="statusPicker">
+        <div class="status-option" onclick="selectStatus(this, '🟢 Онлайн')">🟢 Онлайн</div>
+        <div class="status-option" onclick="selectStatus(this, '☕ Отошёл')">☕ Отошёл</div>
+        <div class="status-option" onclick="selectStatus(this, '🔴 Не беспокоить')">🔴 Не беспокоить</div>
+        <div class="status-option" onclick="selectStatus(this, '🗓️ Встреча')">🗓️ Встреча</div>
+        <div class="status-option" onclick="selectStatus(this, '🍜 Обед')">🍜 Обед</div>
+      </div>
+
+      <button class="btn-save" onclick="saveStatus()">Сохранить статус</button>
+
+      <div style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px;">
+        <button id="studyBtn" class="btn-save" style="background-color: #17a2b8;" onclick="toggleStudy()">Начать учёбу</button>
+        <p style="font-size: 0.9rem; margin-top: 10px;">Общее время учёбы: <b id="studyTimeDisp">0</b> мин</p>
+      </div>
     </div>
-    <div class="status-grid">
-      <div class="status-option" onclick="setPick(this, '🟢 Онлайн')">🟢 Онлайн</div>
-      <div class="status-option" onclick="setPick(this, '☕ Отошёл')">☕ Отошёл</div>
-      <div class="status-option" onclick="setPick(this, '🔴 Не беспокоить')">🔴 Не беспокоить</div>
-    </div>
-    <button class="btn-save" onclick="saveStat()">Сохранить статус</button>
-    <div style="margin-top:15px; border-top:1px solid #eee; padding-top:15px;">
-      <button id="studyBtn" class="btn-save" style="background:#17a2b8;" onclick="toggleStudy()">Начать учёбу</button>
-      <p style="font-size:0.9rem;">Время учёбы: <b id="studyTimeDisp">0</b> мин</p>
+
+    <div class="card">
+      <h2>👥 Монитор группы</h2>
+      <div id="groupList">Загрузка данных...</div>
     </div>
   </div>
 
-  <div class="card">
-    <h2>👥 Монитор группы</h2>
-    <div id="groupList">Загрузка...</div>
-  </div>
+  <script>
+    const CLIENT_URL = 'https://unnsbhztrdlonakztwtl.supabase.co'.trim();
+    const CLIENT_KEY = 'sb_publishable_Cqmz3Pa7c9AvAuk6EmPTFQ_GovCnhpB'.trim();
+    const supabaseClient = supabase.createClient(CLIENT_URL, CLIENT_KEY);
 
-<script>
-    // ПРОВЕРЕНО: Ключи из твоих скриншотов
-    const URL = 'https://unnsbhztrdlonakztwtl.supabase.co'.trim();
-    const KEY = 'sb_publishable_Cqmz3Pa7c9AvAuk6EmPTFQ_GovCnhpB'.trim();
-    const supabaseClient = supabase.createClient(URL, KEY);
+    let currentUser = null;
+    let pickedStatus = '';
+    let studyStartTime = null;
 
-    let user = null;
-    let picked = '';
-    let studyStart = null;
-
-    // Вход/Выход
-    document.getElementById('signInBtn').onclick = () => supabaseClient.auth.signInWithOAuth({ 
-        provider: 'google', 
-        options: { redirectTo: window.location.origin + window.location.pathname } 
-    });
-    document.getElementById('signOutBtn').onclick = () => { supabaseClient.auth.signOut(); location.reload(); };
-
-    // Логика статусов
-    window.setPick = (el, txt) => {
-        document.querySelectorAll('.status-option').forEach(o => o.classList.remove('active'));
-        el.classList.add('active');
-        picked = txt;
+    // --- ЛОГИКА АВТОРИЗАЦИИ ---
+    document.getElementById('loginBtn').onclick = async () => {
+      // КРИТИЧЕСКИЙ ФИКС: redirectTo должен вести именно на страницу с asdf
+      const currentUrl = window.location.origin + window.location.pathname;
+      await supabaseClient.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: currentUrl }
+      });
     };
 
-    window.saveStat = async () => {
-        if(!user) return alert("Войдите!");
-        await supabaseClient.from('profiles').update({ status: picked }).eq('id', user.id);
-        updateUI();
+    document.getElementById('logoutBtn').onclick = async () => {
+      await supabaseClient.auth.signOut();
+      location.reload();
     };
 
+    // --- УПРАВЛЕНИЕ СТАТУСОМ ---
+    window.selectStatus = (element, text) => {
+      document.querySelectorAll('.status-option').forEach(opt => opt.classList.remove('active'));
+      element.classList.add('active');
+      pickedStatus = text;
+    };
+
+    window.saveStatus = async () => {
+      if (!currentUser) return alert("Пожалуйста, сначала войдите через Google!");
+      if (!pickedStatus) return alert("Выберите статус из списка!");
+      
+      const { error } = await supabaseClient.from('profiles').update({ 
+        status: pickedStatus,
+        last_seen: new Date().toISOString() 
+      }).eq('id', currentUser.id);
+      
+      if (error) alert("Ошибка сохранения: " + error.message);
+      fetchUsers();
+    };
+
+    // --- УЧЁБА (ТАЙМЕР) ---
     window.toggleStudy = async () => {
-        if(!user) return alert("Войдите!");
-        const btn = document.getElementById('studyBtn');
-        if(!studyStart) {
-            studyStart = Date.now();
-            btn.innerText = "Остановить"; btn.style.background = "#dc3545";
+      if (!currentUser) return alert("Войдите в аккаунт!");
+      const btn = document.getElementById('studyBtn');
+      
+      if (!studyStartTime) {
+        studyStartTime = Date.now();
+        btn.innerText = "Остановить учёбу";
+        btn.style.backgroundColor = "#dc3545";
+      } else {
+        const elapsedSeconds = Math.floor((Date.now() - studyStartTime) / 1000);
+        const mins = Math.floor(elapsedSeconds / 60);
+        
+        if (mins > 0) {
+          const { data } = await supabaseClient.from('profiles').select('study_time').eq('id', currentUser.id).single();
+          await supabaseClient.from('profiles').update({ 
+            study_time: (data?.study_time || 0) + mins,
+            last_seen: new Date().toISOString()
+          }).eq('id', currentUser.id);
         } else {
-            const mins = Math.floor((Date.now() - studyStart)/60000);
-            if(mins > 0) {
-                const {data} = await supabaseClient.from('profiles').select('study_time').eq('id', user.id).single();
-                await supabaseClient.from('profiles').update({ study_time: (data?.study_time || 0) + mins }).eq('id', user.id);
-            }
-            studyStart = null; btn.innerText = "Начать учёбу"; btn.style.background = "#17a2b8";
-            updateUI();
+          alert("Прошло меньше минуты, время не засчитано.");
         }
+        
+        studyStartTime = null;
+        btn.innerText = "Начать учёбу";
+        btn.style.backgroundColor = "#17a2b8";
+        fetchUsers();
+      }
     };
 
-    async function updateUI() {
-        const { data } = await supabaseClient.from('profiles').select('*').order('username');
-        if(!data) return;
-        document.getElementById('groupList').innerHTML = data.map(u => {
-            const isOn = (new Date() - new Date(u.last_seen)) < 70000;
-            return `<div class="user-item">
-                <div class="status-dot" style="background:${isOn ? '#28a745' : '#ccc'}"></div>
-                <div class="username">${u.username}</div>
-                <div class="status-tag">${u.status || '—'} • ${u.study_time || 0}м</div>
-            </div>`;
-        }).join('');
-        const me = data.find(u => u.id === user?.id);
-        if(me) {
-            document.getElementById('displayUsername').innerText = me.username;
-            document.getElementById('currentStatusText').innerText = me.status || '—';
-            document.getElementById('studyTimeDisp').innerText = me.study_time || 0;
+    // --- ОТОБРАЖЕНИЕ СПИСКА ---
+    async function fetchUsers() {
+      const { data: users, error } = await supabaseClient.from('profiles').select('*').order('last_seen', { ascending: false });
+      if (error) {
+        console.error("Ошибка загрузки:", error);
+        return;
+      }
+
+      const listDiv = document.getElementById('groupList');
+      if (users.length === 0) {
+        listDiv.innerHTML = "<p style='color:#999; text-align:center;'>В группе пока никого нет</p>";
+        return;
+      }
+
+      listDiv.innerHTML = users.map(u => {
+        // Считаем онлайн: если последнее действие было меньше 2 минут назад
+        const lastSeenDate = new Date(u.last_seen);
+        const isOnline = (new Date() - lastSeenDate) < 120000; 
+        const avatarUrl = u.avatar_url || `https://ui-avatars.com/api/?name=${u.username}&background=random`;
+
+        return `
+          <div class="user-item">
+            <div class="status-dot" style="background-color: ${isOnline ? '#28a745' : '#ccc'}"></div>
+            <img src="${avatarUrl}" class="avatar" alt="ava">
+            <div class="username">${u.username || 'Аноним'}</div>
+            <div class="status-tag">${u.status || 'Нет статуса'} • ${u.study_time || 0} мин</div>
+          </div>
+        `;
+      }).join('');
+
+      if (currentUser) {
+        const me = users.find(u => u.id === currentUser.id);
+        if (me) {
+          document.getElementById('displayUsername').innerText = me.username;
+          document.getElementById('currentStatusText').innerText = me.status || '—';
+          document.getElementById('studyTimeDisp').innerText = me.study_time || 0;
         }
+      }
     }
 
+    // --- СТАРТ ---
     async function init() {
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (session) {
-            user = session.user;
-            await supabaseClient.from('profiles').upsert({
-                id: user.id,
-                username: user.user_metadata.full_name || user.email,
-                last_seen: new Date().toISOString()
-            });
-            setInterval(() => supabaseClient.from('profiles').update({ last_seen: new Date().toISOString() }).eq('id', user.id), 30000);
-        }
-        updateUI();
-        setInterval(updateUI, 15000);
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      
+      if (session) {
+        currentUser = session.user;
+        
+        // Регистрируем пользователя
+        await supabaseClient.from('profiles').upsert({
+          id: currentUser.id,
+          username: currentUser.user_metadata.full_name || currentUser.email,
+          avatar_url: currentUser.user_metadata.avatar_url,
+          last_seen: new Date().toISOString()
+        });
+
+        // Фоновое обновление "онлайна" каждые 45 секунд
+        setInterval(async () => {
+          await supabaseClient.from('profiles').update({ 
+            last_seen: new Date().toISOString() 
+          }).eq('id', currentUser.id);
+        }, 45000);
+      } else {
+        // Если не вошли, можно спрятать часть контента (опционально)
+        // document.getElementById('mainContent').style.opacity = '0.5';
+      }
+
+      fetchUsers();
+      setInterval(fetchUsers, 10000);
     }
+
     window.onload = init;
-</script>
+  </script>
 </body>
 </html>
