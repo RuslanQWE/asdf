@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Система мониторинга учебной группы | v2.0</title>
-    
+    <title>Система мониторинга учебной группы | v2.1</title>
     <style>
         :root {
             --primary-color: #007bff;
@@ -117,16 +116,11 @@
             width: 12px; height: 12px; border-radius: 50%; background: #d1d1d1; margin-right: 18px; position: relative;
         }
         .online-dot.active { background: var(--success-color); box-shadow: 0 0 10px var(--success-color); }
-        .online-dot.active::after {
-            content: ''; position: absolute; width: 100%; height: 100%; border-radius: 50%; background: var(--success-color); opacity: 0.4; animation: pulse 2s infinite;
-        }
-        @keyframes pulse { 0% { transform: scale(1); opacity: 0.4; } 100% { transform: scale(2.5); opacity: 0; } }
         
         .username { font-weight: 600; font-size: 1.05rem; flex-grow: 1; }
         .status-tag { font-size: 0.8rem; color: var(--text-muted); background: #f8f9fa; padding: 5px 12px; border-radius: 20px; border: 1px solid #eee; }
         .session-tag { display: block; font-size: 0.75rem; color: var(--primary-color); margin-top: 4px; font-weight: 700; }
 
-        /* Achievements & Leaderboard */
         .achievement-badge { display: inline-block; padding: 4px 8px; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px; font-size: 0.75rem; margin: 2px; cursor: help; }
         .rating-item { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px dashed #eee; }
         .rating-rank { font-weight: bold; color: var(--primary-color); width: 30px; }
@@ -195,14 +189,14 @@
     let timerInterval = null;
 
     const ACHIEVEMENT_LIST = {
-        EARLY_BIRD: { icon: '🌅', title: 'Ранняя пташка', desc: 'Зашел до 8:00' },
-        MARATHON: { icon: '🏃', title: 'Марафонец', desc: 'Учился более 2 часов за раз' },
-        ACTIVIST: { icon: '📢', title: 'Активист', desc: 'Написал более 20 сообщений' }
+        'EARLY_BIRD': { icon: '🌅', title: 'Ранняя пташка', desc: 'Зашел до 8:00' },
+        'MARATHON': { icon: '🏃', title: 'Марафонец', desc: 'Учился более 2 часов за раз' },
+        'ACTIVIST': { icon: '📢', title: 'Активист', desc: 'Написал более 20 сообщений' }
     };
 
     async function checkUser() {
         const { data } = await supabase.auth.getUser();
-        const infoBox = document.querySelector('.status-info-box');
+        const infoBox = document.querySelector('#authContent');
 
         if (data?.user) {
             currentUser = data.user;
@@ -250,14 +244,17 @@
         if (hour < 8 && !achArray.includes('early_bird')) {
             const newAch = [...achArray, 'early_bird'];
             await supabase.from('profiles').update({ achievements: newAch }).eq('id', currentUser.id);
-            alert("🌅 Достижение: Ранняя пташка!");
+            alert("🌅 Достижение получено: Ранняя пташка!");
             renderMyAchievements(newAch);
         }
     }
 
     function renderMyAchievements(ach) {
         const container = document.getElementById('myAchievements');
-        if (!ach || ach.length === 0) return;
+        if (!ach || ach.length === 0) {
+            container.innerHTML = '<span style="color:#999; font-size:0.8rem;">Достижений пока нет 🐣</span>';
+            return;
+        }
         container.innerHTML = ach.map(id => {
             const item = ACHIEVEMENT_LIST[id.toUpperCase()];
             return item ? `<span class="achievement-badge" title="${item.desc}">${item.icon} ${item.title}</span>` : '';
@@ -274,7 +271,7 @@
             const isStarting = btn.classList.contains('btn-start');
             const startTime = isStarting ? new Date().toISOString() : null;
             
-            if (!isStarting) { // Завершение сессии
+            if (!isStarting) { 
                 const { data: prof } = await supabase.from('profiles').select('session_start, total_study_minutes, achievements').eq('id', currentUser.id).single();
                 const diffMin = Math.floor((new Date() - new Date(prof.session_start)) / 60000);
                 
@@ -286,7 +283,7 @@
 
                 if (diffMin >= 120 && !(prof.achievements || []).includes('marathon')) {
                     updates.achievements = [...(prof.achievements || []), 'marathon'];
-                    alert("🏃 Достижение: Марафонец!");
+                    alert("🏃 Достижение получено: Марафонец!");
                 }
 
                 await supabase.from('profiles').update(updates).eq('id', currentUser.id);
@@ -295,9 +292,11 @@
                 btn.innerText = "▶ Начать период учебы";
                 btn.classList.replace('btn-stop', 'btn-start');
                 fetchLeaderboard();
+                fetchGroup();
             } else {
                 await supabase.from('profiles').update({ is_studying: true, session_start: startTime }).eq('id', currentUser.id);
                 runLocalTimer(startTime);
+                fetchGroup();
             }
         };
     }
@@ -351,13 +350,16 @@
 
         document.getElementById('groupList').innerHTML = data.map(user => {
             const isOnline = user.last_seen && (new Date() - new Date(user.last_seen) < 60000);
-            const badges = (user.achievements || []).map(id => `<span title="${ACHIEVEMENT_LIST[id.toUpperCase()]?.desc || ''}">${ACHIEVEMENT_LIST[id.toUpperCase()]?.icon || ''}</span>`).join(' ');
+            const badges = (user.achievements || []).map(id => {
+                const item = ACHIEVEMENT_LIST[id.toUpperCase()];
+                return item ? `<span title="${item.title}: ${item.desc}">${item.icon}</span>` : '';
+            }).join(' ');
             
             return `
                 <div class="user-item">
                     <div class="online-dot ${isOnline ? 'active' : ''}"></div>
-                    <div class="username">${user.username} ${badges}</div>
-                    <div class="user-meta">
+                    <div class="username">${user.username} <span style="font-size:0.9rem; margin-left:5px;">${badges}</span></div>
+                    <div class="user-meta" style="text-align:right;">
                         <div class="status-tag">${user.status || 'В сети'}</div>
                         ${user.is_studying ? `<span class="session-tag">📖 Учится</span>` : ''}
                     </div>
@@ -381,9 +383,10 @@
         const { data: p } = await supabase.from('profiles').select('message_count, achievements').eq('id', currentUser.id).single();
         const newCount = (p.message_count || 0) + 1;
         let upds = { message_count: newCount };
+        
         if (newCount >= 20 && !(p.achievements || []).includes('activist')) {
             upds.achievements = [...(p.achievements || []), 'activist'];
-            alert("📢 Достижение: Активист!");
+            alert("📢 Достижение получено: Активист!");
         }
         await supabase.from('profiles').update(upds).eq('id', currentUser.id);
 
@@ -401,7 +404,7 @@
     }
 
     checkUser();
-    setInterval(() => { fetchGroup(); fetchMessages(); }, 5000);
+    setInterval(() => { fetchGroup(); fetchMessages(); }, 10000); // Обновление каждые 10 сек
 </script>
 </body>
 </html>
