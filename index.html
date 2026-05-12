@@ -402,7 +402,29 @@
             box.scrollTop = box.scrollHeight;
         }
     }
+    async function saveStudyTime(minutes) {
+  // 1. Сначала узнаем, сколько минут уже есть в базе
+  const { data } = await supabase
+    .from('profiles')
+    .select('total_study_minutes')
+    .eq('id', currentUser.id)
+    .single();
 
+  // 2. Складываем старое время с новым и сохраняем
+  await supabase.from('profiles').upsert({
+    id: currentUser.id,
+    total_study_minutes: (data?.total_study_minutes || 0) + minutes
+  });
+}
+    async function getLeaderboard() {
+  const { data } = await supabase
+    .from('profiles')
+    .select('username, total_study_minutes')
+    .order('total_study_minutes', { ascending: false }) // От большего к меньшему
+    .limit(3); // Берем только топ-3
+
+  return data;
+}
     checkUser();
     setInterval(() => { fetchGroup(); fetchMessages(); }, 10000); // Обновление каждые 10 сек
 </script>
