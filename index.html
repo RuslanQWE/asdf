@@ -167,7 +167,9 @@
         <h2>👥 Монитор активности группы</h2>
         <div id="groupList">Загрузка данных участников...</div>
     </div>
-
+<div id="globalPulse" style="font-weight: bold; color: var(--primary-color); margin-bottom: 10px;">
+    
+</div>
     <div class="card" id="chatSection" style="display:none;">
         <h2>💬 Корпоративный чат</h2>
         <div id="chatBox">Поиск последних сообщений...</div>
@@ -424,6 +426,31 @@
     .limit(3); // Берем только топ-3
 
   return data;
+}
+
+    async function giveRespect(userId) {
+    // 1. Получаем текущее количество респектов этого пользователя
+    const { data } = await supabase.from('profiles').select('respect_count').eq('id', userId).single();
+    
+    // 2. Увеличиваем на 1 и сохраняем
+    await supabase.from('profiles')
+        .update({ respect_count: (data.respect_count || 0) + 1 })
+        .eq('id', userId);
+        
+    alert("Респект отправлен! 🤝");
+    fetchGroup(); // Обновляем список, чтобы увидеть результат
+}
+    <button onclick="giveRespect('${user.id}')" style="cursor:pointer; background:none; border:none;">👍 ${user.respect_count || 0}</button>
+    async function showGlobalPulse() {
+    // 1. Запрашиваем время всех пользователей
+    const { data } = await supabase.from('profiles').select('total_study_minutes');
+    
+    // 2. Складываем всё в одну переменную
+    const totalMinutes = data.reduce((sum, user) => sum + (user.total_study_minutes || 0), 0);
+    const totalHours = Math.floor(totalMinutes / 60);
+
+    // 3. Выводим на экран
+    document.getElementById('globalPulse').innerText = `Группа вместе проучилась: ${totalHours} ч. 🔥`;
 }
     checkUser();
     setInterval(() => { fetchGroup(); fetchMessages(); }, 10000); // Обновление каждые 10 сек
