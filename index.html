@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Система мониторинга учебной группы | v2.1</title>
+    <title>Система мониторинга учебной группы | v2.2</title>
     <style>
         :root {
             --primary-color: #007bff;
@@ -118,7 +118,7 @@
         .online-dot.active { background: var(--success-color); box-shadow: 0 0 10px var(--success-color); }
         
         .username { font-weight: 600; font-size: 1.05rem; flex-grow: 1; }
-        .status-tag { font-size: 0.8rem; color: var(--text-muted); background: #f8f9fa; padding: 5px 12px; border-radius: 20px; border: 1px solid #eee; }
+        .status-tag { font-size: 0.8rem; color: var(--text-muted); background: #f8f9fa; padding: 5px 12px; border-radius: 20px; border: 1px solid #eee; margin-bottom: 5px; }
         .session-tag { display: block; font-size: 0.75rem; color: var(--primary-color); margin-top: 4px; font-weight: 700; }
 
         .achievement-badge { display: inline-block; padding: 4px 8px; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px; font-size: 0.75rem; margin: 2px; cursor: help; }
@@ -130,6 +130,9 @@
         .chat-input-container { display: flex; gap: 10px; }
         #chatInput { flex-grow: 1; padding: 12px; border-radius: 10px; border: 1px solid #ddd; outline: none; }
         .btn-send { padding: 0 20px; background: var(--success-color); color: white; border: none; border-radius: 10px; cursor: pointer; font-size: 1.2rem; }
+        
+        .respect-btn { cursor: pointer; background: #fff; border: 1px solid #eee; border-radius: 8px; padding: 4px 8px; font-size: 0.85rem; transition: transform 0.1s; }
+        .respect-btn:active { transform: scale(0.9); }
     </style>
 </head>
 <body>
@@ -165,11 +168,10 @@
 
     <div class="card">
         <h2>👥 Монитор активности группы</h2>
+        <div id="globalPulse" style="font-weight: bold; color: var(--primary-color); margin-bottom: 15px; font-size: 1.1rem; text-align: center;">Загрузка пульса группы...</div>
         <div id="groupList">Загрузка данных участников...</div>
     </div>
-<div id="globalPulse" style="font-weight: bold; color: var(--primary-color); margin-bottom: 10px;">
-    
-</div>
+
     <div class="card" id="chatSection" style="display:none;">
         <h2>💬 Корпоративный чат</h2>
         <div id="chatBox">Поиск последних сообщений...</div>
@@ -205,7 +207,6 @@
             document.getElementById('sessionUI').style.display = 'block';
             document.getElementById('chatSection').style.display = 'block'; 
             
-            // ПРЕВРАЩАЕМ INSERT В UPSERT (Решает проблему дублей)
             const { data: profile } = await supabase.from('profiles').upsert({ 
                 id: currentUser.id, 
                 username: currentUser.user_metadata.full_name || currentUser.email 
@@ -363,11 +364,14 @@
                     <div class="username">${user.username} <span style="font-size:0.9rem; margin-left:5px;">${badges}</span></div>
                     <div class="user-meta" style="text-align:right;">
                         <div class="status-tag">${user.status || 'В сети'}</div>
+                        <button onclick="window.giveRespect('${user.id}')" class="respect-btn">🤝 ${user.respect_count || 0}</button>
                         ${user.is_studying ? `<span class="session-tag">📖 Учится</span>` : ''}
                     </div>
                 </div>
             `;
         }).join('');
+        
+        showGlobalPulse(data);
     }
 
     window.sendMessage = async () => {
@@ -381,7 +385,6 @@
             text: text 
         });
         
-        // Проверка на Активиста
         const { data: p } = await supabase.from('profiles').select('message_count, achievements').eq('id', currentUser.id).single();
         const newCount = (p.message_count || 0) + 1;
         let upds = { message_count: newCount };
@@ -404,56 +407,23 @@
             box.scrollTop = box.scrollHeight;
         }
     }
-    async function saveStudyTime(minutes) {
-  // 1. Сначала узнаем, сколько минут уже есть в базе
-  const { data } = await supabase
-    .from('profiles')
-    .select('total_study_minutes')
-    .eq('id', currentUser.id)
-    .single();
 
-  // 2. Складываем старое время с новым и сохраняем
-  await supabase.from('profiles').upsert({
-    id: currentUser.id,
-    total_study_minutes: (data?.total_study_minutes || 0) + minutes
-  });
-}
-    async function getLeaderboard() {
-  const { data } = await supabase
-    .from('profiles')
-    .select('username, total_study_minutes')
-    .order('total_study_minutes', { ascending: false }) // От большего к меньшему
-    .limit(3); // Берем только топ-3
+    window.giveRespect = async (userId) => {
+        const { data } = await supabase.from('profiles').select('respect_count').eq('id', userId).single();
+        await supabase.from('profiles')
+            .update({ respect_count: (data.respect_count || 0) + 1 })
+            .eq('id', userId);
+        fetchGroup(); 
+    };
 
-  return data;
-}
+    function showGlobalPulse(profiles) {
+        const totalMinutes = profiles.reduce((sum, user) => sum + (user.total_study_minutes || 0), 0);
+        const totalHours = Math.floor(totalMinutes / 60);
+        document.getElementById('globalPulse').innerText = `🔥 Группа вместе проучилась: ${totalHours} ч. ${totalMinutes % 60} м.`;
+    }
 
-    async function giveRespect(userId) {
-    // 1. Получаем текущее количество респектов этого пользователя
-    const { data } = await supabase.from('profiles').select('respect_count').eq('id', userId).single();
-    
-    // 2. Увеличиваем на 1 и сохраняем
-    await supabase.from('profiles')
-        .update({ respect_count: (data.respect_count || 0) + 1 })
-        .eq('id', userId);
-        
-    alert("Респект отправлен! 🤝");
-    fetchGroup(); // Обновляем список, чтобы увидеть результат
-}
-    <button onclick="giveRespect('${user.id}')" style="cursor:pointer; background:none; border:none;">👍 ${user.respect_count || 0}</button>
-    async function showGlobalPulse() {
-    // 1. Запрашиваем время всех пользователей
-    const { data } = await supabase.from('profiles').select('total_study_minutes');
-    
-    // 2. Складываем всё в одну переменную
-    const totalMinutes = data.reduce((sum, user) => sum + (user.total_study_minutes || 0), 0);
-    const totalHours = Math.floor(totalMinutes / 60);
-
-    // 3. Выводим на экран
-    document.getElementById('globalPulse').innerText = `Группа вместе проучилась: ${totalHours} ч. 🔥`;
-}
     checkUser();
-    setInterval(() => { fetchGroup(); fetchMessages(); }, 10000); // Обновление каждые 10 сек
+    setInterval(() => { fetchGroup(); fetchMessages(); }, 10000);
 </script>
 </body>
 </html>
